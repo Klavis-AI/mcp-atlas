@@ -1,6 +1,6 @@
 # MCP-Atlas: A Large-Scale Benchmark for Tool-Use Competency with Real MCP Servers
 
-MCP-Atlas is a comprehensive benchmark for evaluating AI models' tool-use capabilities across 45 Model Context Protocol (MCP) servers. It provides a standardized environment for running agent completions and evaluating performance with LLM-as-judge methodology.
+MCP-Atlas is a comprehensive benchmark for evaluating AI models' tool-use capabilities across 36 Model Context Protocol (MCP) servers. It provides a standardized environment for running agent completions and evaluating performance with LLM-as-judge methodology.
 
 - Paper: [LINK TO PAPER - TODO]
 - Leaderboard: [https://scale.com/leaderboard/mcp_atlas](https://scale.com/leaderboard/mcp_atlas)
@@ -9,8 +9,8 @@ MCP-Atlas is a comprehensive benchmark for evaluating AI models' tool-use capabi
 ## What is MCP-Atlas?
 MCP-Atlas evaluates how well AI agents can use tools to complete real-world tasks. The benchmark includes:
 
-- 45 MCP servers spanning categories like search, code execution, databases, APIs, and productivity tools
-  - 25 don't require any setup, 15 require you to get API keys, and 5 require API keys and data setup (detailed below).
+- 36 MCP servers spanning categories like search, code execution, databases, APIs, and productivity tools
+  - 20 don't require any setup, 11 require you to get API keys, and 5 require API keys and data setup (detailed below).
 - 500 evaluation prompts with ground-truth expected tool calls and answers
 - LLM-as-judge evaluation producing pass rate, coverage rate, and detailed diagnostics
 - Dockerized environment ensuring reproducible results across different machines
@@ -56,7 +56,7 @@ make build && make run-docker
 
 This starts the agent-environment service on port 1984 (takes 1+ minute to initialize). Before continuing, please wait for this to finish, you'll see log "Uvicorn running on http://0.0.0.0:1984". 
 
-By default, [25 servers](services/agent-environment/src/agent_environment/mcp_client.py#L23) that don't require API keys are enabled. Servers requiring API keys are auto-enabled only if you've set their keys in `.env`. To see the enabled mcp servers and confirm they're online: `curl -s http://localhost:1984/enabled-servers | jq -c`
+By default, [20 servers](services/agent-environment/src/agent_environment/mcp_client.py#L23) that don't require API keys are enabled. Servers requiring API keys are auto-enabled only if you've set their keys in `.env`. To see the enabled mcp servers and confirm they're online: `curl -s http://localhost:1984/enabled-servers | jq -c`
 
 Optional: to check what tools are available, you can use this CURL script `./services/agent-environment/dev_scripts/debug_and_concurrency_tests/curl_scripts/mcp__list_tools.sh | jq > list_tools.json ; open list_tools.json`
 
@@ -89,7 +89,7 @@ curl -X POST http://localhost:3000/v2/mcp_eval/run_agent \
 cd services/mcp_eval
 ```
 
-Run the script with a small sample of 10 tasks. This will use the specified input CSV file. It should be solvable with only the 25 MCP servers that don't require any API keys (enabled by default). For details on servers, see `env.template` and [`mcp_server_template.json`](services/agent-environment/src/agent_environment/mcp_server_template.json).
+Run the script with a small sample of 10 tasks. This will use the specified input CSV file. It should be solvable with only the 20 MCP servers that don't require any API keys (enabled by default). For details on servers, see `env.template` and [`mcp_server_template.json`](services/agent-environment/src/agent_environment/mcp_server_template.json).
 
 ```bash
 uv run python mcp_completion_script.py \
@@ -136,7 +136,7 @@ Outputs saved to `evaluation_results/`:
 
 ### 7. Add more API keys (strongly recommended)
 
-Approximately 18% of evaluation tasks work with the 25 default servers. To run more tasks, add API keys to your `.env` file (see `env.template` for setup instructions). Note that a task may require multiple mcp servers, and that task will be skipped if any of its required servers are unavailable. For example, exa is used in 13% of tasks as part of the ground truth trajectory, and without that api key, you'll skip 13% of tasks. API-requiring mcp server usage:
+Approximately 18% of evaluation tasks work with the 20 default servers. To run more tasks, add API keys to your `.env` file (see `env.template` for setup instructions). Note that a task may require multiple mcp servers, and that task will be skipped if any of its required servers are unavailable. For example, exa is used in 13% of tasks as part of the ground truth trajectory, and without that api key, you'll skip 13% of tasks. API-requiring mcp server usage:
 
 - exa: 13% | airtable: 12% | mongodb: 12% | oxylabs: 11% | brave-search: 10%
 - alchemy: 8% | national-parks: 8% | twelvedata: 8% | lara-translate: 7%
@@ -185,7 +185,7 @@ uv run mcp_evals_scores.py \
 
 ## What's Included
 
-- **45 MCP servers** including calculator, Wikipedia, filesystem, Git, weather, GitHub, and more
+- **36 MCP servers** including calculator, Wikipedia, filesystem, Git, weather, GitHub, and more
 - **Agent completion service** for running multi-turn LLM conversations with tool use
 - **Docker containerization** for consistent MCP server environments
 - **HTTP APIs** for tool calling and listing available tools

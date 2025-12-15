@@ -21,12 +21,11 @@ with open(config_path) as f:
 
 # Default servers that don't require API keys (used when ENABLED_SERVERS is empty)
 DEFAULT_SERVERS = [
-    "airbnb", "anili", "arxiv", "calculator", "cli-mcp-server",
+    "arxiv", "calculator", "cli-mcp-server",
     "clinicaltrialsgov-mcp-server", "context7", "ddg-search", "desktop-commander",
-    "f1-mcp-server", "fetch", "filesystem", "git", "mcp-code-executor",
+    "fetch", "filesystem", "git", "mcp-code-executor",
     "mcp-server-code-runner", "memory", "met-museum", "open-library",
-    "osm-mcp-server", "pubmed", "weather", "whois", "wikipedia", "yfmcp",
-    "youtube-transcript"
+    "osm-mcp-server", "pubmed", "weather", "whois", "wikipedia"
 ]
 
 # Filter servers based on ENABLED_SERVERS environment variable

@@ -37,12 +37,9 @@ TOOL_NAME_MAPPINGS = {
 
 # Cache whitelist - only these servers will have their responses cached
 CACHEABLE_SERVERS = {
-    "airbnb",
     "airtable",
     "alchemy",
-    "anili",
     # "arxiv",
-    "balldontlie",
     "brave-search",
     "calculator",
     # "cli-mcp-server",
@@ -52,7 +49,6 @@ CACHEABLE_SERVERS = {
     "desktop-commander",
     "e2b-server",
     "exa",
-    "f1-mcp-server",
     "fetch",
     # "filesystem",
     # "git",
@@ -67,20 +63,16 @@ CACHEABLE_SERVERS = {
     "mongodb",
     "national-parks",
     "notion",
+    "open-library",
     "osm-mcp-server",
     "oxylabs",
     "pubmed",
-    "reddit",
-    "rijksmuseum-server",
     "slack",
     "twelvedata",
     "weather",
     "weather-data",
     "whois",
     "wikipedia",
-    "yfmcp",
-    "youtube",
-    "youtube-transcript",
 }
 
 
