@@ -33,10 +33,12 @@ cp env.template .env
 ```
 
 Edit `.env` and set:
-- `LLM_API_KEY` - Your LLM API key for the model you want to evaluate (required for agent completions in step 5). Works with most LLMs via LiteLLM.
+- `LLM_API_KEY` - Your LLM API key for the model you want to evaluate (required for agent completions in step 5). We're using gpt-5.1 in our example so please use an OpenAI API key.
 - `EVAL_LLM_API_KEY` - Your LLM API key for evaluation scoring. Default model is `gemini/gemini-2.5-pro`, so use a Gemini API key. You can change `EVAL_LLM_MODEL` and use the corresponding provider's key.
-- `LLM_BASE_URL` - **Optional**, leave empty to auto-detect. Set if you have your own LiteLLM or other proxy.
-- `EVAL_LLM_MODEL` - **Optional**, defaults to `gemini/gemini-2.5-pro`. Examples: `gpt-4o`, `claude-3-5-sonnet-20241022`
+- `LLM_BASE_URL` - **Optional**, leave empty to use official provider APIs. Set if using a custom endpoint (e.g., LiteLLM proxy, Azure OpenAI, or self-hosted models).
+- `EVAL_LLM_MODEL` - **Optional**, defaults to `gemini/gemini-2.5-pro`. Examples: `gpt-5.1`, `claude-3-5-sonnet-20241022`
+
+We use [LiteLLM](https://docs.litellm.ai/) to support 100+ LLMs via a unified API. Our examples use `openai/gpt-5.1`, but most other models should work. Ensure that LLM_API_KEY matches the model you're using.
 
 ### 2. Start the MCP servers
 
@@ -56,9 +58,31 @@ make build && make run-docker
 
 This starts the agent-environment service on port 1984 (takes 1+ minute to initialize). Before continuing, please wait for this to finish, you'll see log "Uvicorn running on http://0.0.0.0:1984". 
 
-By default, [20 servers](services/agent-environment/src/agent_environment/mcp_client.py#L23) that don't require API keys are enabled. Servers requiring API keys are auto-enabled only if you've set their keys in `.env`. To see the enabled mcp servers and confirm they're online: `curl -s http://localhost:1984/enabled-servers | jq -c`
+By default, [20 servers](services/agent-environment/src/agent_environment/mcp_client.py#L23) that don't require API keys are enabled. Servers requiring API keys are auto-enabled only if you've set their keys in `.env`.
 
-Optional: to check what tools are available, you can use this CURL script `./services/agent-environment/dev_scripts/debug_and_concurrency_tests/curl_scripts/mcp__list_tools.sh | jq > list_tools.json ; open list_tools.json`
+Confirm that all 20 servers are online. You should see `"total":20,"online":20,"offline":0` and the list of servers. [Expected response](https://gist.github.com/geobio/88b1c4bed8148a8fbfb28628c384d5e1)
+```bash
+curl -s http://localhost:1984/enabled-servers | jq -c
+```
+
+When you call `/enabled-servers`, if any error, Ctrl + C and re-run. If the docker container does not shut down gracefully, use `docker ps` and `docker kill <ID>` to force it to shut down.
+
+Test a tool call to the `filesystem` MCP server. [Expected response](https://gist.github.com/geobio/65a9a2d9a07a4b9117a312030a7a3830)
+```bash
+curl -X POST http://localhost:1984/call-tool \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool_name": "filesystem_read_text_file",
+    "tool_args": {
+      "path": "/data/Barber Shop.csv",
+      "head": 1
+    }
+  }' | jq
+```
+
+Optional: see more sample tool calls in [curl_scripts directory](services/agent-environment/dev_scripts/debug_and_concurrency_tests/curl_scripts).  
+Optional: to check what tools are available, you can use this CURL script:  
+`curl -X POST http://localhost:1984/list-tools | jq > list_tools.json ; open list_tools.json`
 
 ### 3. Start the completion service (in a new terminal)
 
@@ -68,15 +92,19 @@ make run-mcp-completion
 
 This starts the MCP completion service on port 3000. It provides an API that connects LLMs to the MCP servers, handling the agentic loop: the LLM decides which tools to call, the service executes them via the MCP servers (port 1984), and returns results back to the LLM until the task is complete.
 
-### 4. Test with a simple agent completion
+### 4. Test with a simple agent completion (in a new terminal)
+
+Test the agentic loop by calling the MCP completion service. The expected answer is "Customer". [Expected response](https://gist.github.com/geobio/0d4fcfb74541d62070db3ae43e48f5ee)
+
+Run this command:
 
 ```bash
 curl -X POST http://localhost:3000/v2/mcp_eval/run_agent \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai/gpt-4o",
-    "messages": [{"role": "user", "content": "What is the square root of 95?"}],
-    "enabledTools": ["calculator_calculate"],
+    "model": "openai/gpt-5.1",
+    "messages": [{"role": "user", "content": "What is the first word of the file at /data/Barber Shop.csv?"}],
+    "enabledTools": ["filesystem_read_text_file"],
     "maxTurns": 20
   }' | jq
 ```
@@ -93,17 +121,17 @@ Run the script with a small sample of 10 tasks. This will use the specified inpu
 
 ```bash
 uv run python mcp_completion_script.py \
-  --model "openai/gpt-4o" \
+  --model "openai/gpt-5.1" \
   --input "sample_tasks.csv" \
-  --output "sample_4o_results.csv"
+  --output "sample_51_results.csv"
 ```
 
-Results are saved to `completion_results/sample_4o_results.csv`. 
+Results are saved to `completion_results/sample_51_results.csv`. 
 
 **Note:** The script automatically skips tasks that are already in the output file. To re-run all tasks, delete or rename the output file first.
 
 Options:
-- `--model` - [required] LLM model to use (e.g., `openai/gpt-4o`)
+- `--model` - [required] LLM model to use (e.g., `openai/gpt-5.1`)
 - `--input` or `--input_huggingface` - [required] Input CSV file or HuggingFace dataset name
 - `--output` - [required] Output CSV filename (saved to `completion_results/`)
 - `--no-filter` - Disable filtering by available MCP servers (runs all tasks regardless of missing API keys)
@@ -118,8 +146,8 @@ Make sure `EVAL_LLM_API_KEY` is set in `.env` (from step 1). Defaults to `gemini
 
 ```bash
 uv run mcp_evals_scores.py \
---input-file="completion_results/sample_4o_results.csv" \
---model-name="gpt4o"
+--input-file="completion_results/sample_51_results.csv" \
+--model-name="gpt51"
 ```
 
 Options:
@@ -130,9 +158,9 @@ Options:
 - `--concurrency` - Concurrent API requests (default: 5)
 
 Outputs saved to `evaluation_results/`:
-- `scored_gpt4o.csv` - Coverage scores for each task
-- `coverage_stats_gpt4o.csv` - Summary statistics
-- `coverage_histogram_gpt4o.png` - Score distribution plot
+- `scored_gpt51.csv` - Coverage scores for each task
+- `coverage_stats_gpt51.csv` - Summary statistics
+- `coverage_histogram_gpt51.png` - Score distribution plot
 
 ### 7. Add more API keys (strongly recommended)
 
@@ -165,23 +193,29 @@ Run completions using the HuggingFace dataset (contains 500 tasks):
 
 ```bash
 uv run python mcp_completion_script.py \
-  --model "openai/gpt-4o" \
+  --model "openai/gpt-5.1" \
   --input_huggingface "ScaleAI/MCP-Atlas" \
-  --output "mcp_eval_4o_results.csv"
+  --output "mcp_eval_51_results.csv"
 ```
 
 This saves the completion results to:
-- `completion_results/mcp_eval_4o_results.csv` - Contains both ground truth and completion data
+- `completion_results/mcp_eval_51_results.csv` - Contains both ground truth and completion data
 
 Then evaluate the results:
 
 ```bash
 uv run mcp_evals_scores.py \
---input-file="completion_results/mcp_eval_4o_results.csv" \
---model-name="gpt4o"
+--input-file="completion_results/mcp_eval_51_results.csv" \
+--model-name="gpt51"
 ```
 
 **Note:** Tasks are filtered by default (see step 5). To disable, add `--no-filter`, but we recommend adding missing API keys to `.env` instead.
+
+### 9. Evaluate other models
+
+To benchmark other models, repeat step 8 with a different `--model` and `--output`:
+
+See [LiteLLM's supported models](https://docs.litellm.ai/docs/providers) for the full list of available providers and model names. For self-hosted models, change `LLM_BASE_URL`.
 
 ## What's Included
 
