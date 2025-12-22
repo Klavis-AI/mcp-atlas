@@ -68,7 +68,7 @@ async def run_mcp_eval(
             raise Exception(f"LLM completion failed: {error}")
 
         all_messages.append(assistant_message)
-        
+
         yield AgentOutput("message", assistant_message.model_dump())
 
         tool_calls = assistant_message.tool_calls or []

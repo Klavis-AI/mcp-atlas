@@ -26,8 +26,9 @@ class LLMResponse(BaseModel):
 
 
 def configure_litellm():
-    litellm.api_base = config.LLM_BASE_URL # could also be just openai url
+    litellm.api_base = config.LLM_BASE_URL  # could also be just openai url
     litellm.api_key = config.LLM_API_KEY
+
 
 # Configure LiteLLM once at module level
 configure_litellm()

@@ -73,7 +73,7 @@ class ToolCallOutputMessage(BaseModel):
     role: Literal["tool"]
     tool_call_id: str
     content: List[Content] = Field(default_factory=list)
-    
+
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         """
         Custom serialization for OpenAI API compatibility.
@@ -86,14 +86,17 @@ class ToolCallOutputMessage(BaseModel):
                 content_parts.append(item.text)
             elif isinstance(item, ImageContent):
                 # Describe the image since OpenAI tool messages don't support raw images
-                content_parts.append(f"[Image: {item.mimeType}, data length: {len(item.data)} bytes]")
+                content_parts.append(
+                    f"[Image: {item.mimeType}, data length: {len(item.data)} bytes]"
+                )
             elif isinstance(item, ResourceContent):
                 # Serialize resource data
                 import json
+
                 content_parts.append(f"[Resource: {json.dumps(item.resource)}]")
-        
+
         content_str = "\n\n".join(content_parts) if content_parts else ""
-        
+
         return {
             "role": self.role,
             "tool_call_id": self.tool_call_id,

@@ -19,9 +19,11 @@ logger = create_logger(__name__)
 
 # Create cache with appropriate settings for the use case
 tool_cache = Cache(
-    maxsize=10000,          # Max 10000 unique requests (fits about 2000 tasks)
-    ttl=CACHE_TTL_HOURS * 60 * 60,       # 48 hours TTL by default (but each item will have some slight variation)
-    enable_stats=True       # Track cache performance
+    maxsize=10000,  # Max 10000 unique requests (fits about 2000 tasks)
+    ttl=CACHE_TTL_HOURS
+    * 60
+    * 60,  # 48 hours TTL by default (but each item will have some slight variation)
+    enable_stats=True,  # Track cache performance
 )
 
 # Tool name mappings - maps old invalid names to correct names
@@ -126,32 +128,35 @@ def should_cache_tool(tool_name: str) -> bool:
     server_name = tool_name.split("_", 1)[0]
     return server_name in CACHEABLE_SERVERS
 
+
 def generate_cache_key(tool_name: str, tool_args: dict) -> str:
     """Generate consistent cache key from tool call parameters."""
-    cache_data = {
-        "tool_name": tool_name,
-        "tool_args": tool_args
-    }
+    cache_data = {"tool_name": tool_name, "tool_args": tool_args}
     cache_str = json.dumps(cache_data, sort_keys=True)
     return hashlib.md5(cache_str.encode()).hexdigest()
+
 
 @app.post("/call-tool")
 async def call_tool(
     request: CallToolRequest,
 ) -> list[mcp.types.ContentBlock]:
     """Call a specific tool with the provided arguments."""
-    
+
     mapped_tool_name = TOOL_NAME_MAPPINGS.get(request.tool_name, request.tool_name)
-    
+
     # Generate cache key
     cache_key = generate_cache_key(mapped_tool_name, request.tool_args)
-    
+
     # Check cache first
     cached_result = tool_cache.get(cache_key)
-    if cached_result is not None and request.use_cache and should_cache_tool(mapped_tool_name):
+    if (
+        cached_result is not None
+        and request.use_cache
+        and should_cache_tool(mapped_tool_name)
+    ):
         logger.info(f"Returning cached result for tool '{request.tool_name}'")
         return cached_result
-    
+
     async with client:
         try:
             result = await client.call_tool(mapped_tool_name, request.tool_args)
@@ -159,7 +164,9 @@ async def call_tool(
             # Check for errors first (FastMCP best practice)
             if result.is_error:
                 error_msg = "Unknown error"
-                if result.content and isinstance(result.content[0], mcp.types.TextContent):
+                if result.content and isinstance(
+                    result.content[0], mcp.types.TextContent
+                ):
                     error_msg = result.content[0].text
                 raise HTTPException(
                     status_code=500,
@@ -172,14 +179,15 @@ async def call_tool(
                 # TTL is 70-100% of default TTL, to avoid all items expiring at the same time
                 random_ttl = int(CACHE_TTL_HOURS * 60 * 60 * random.uniform(0.7, 1.0))
                 tool_cache.set(cache_key, content_blocks, ttl=random_ttl)
-            
+
             return content_blocks
-            
+
         except Exception as e:
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to call tool '{request.tool_name}': {str(e)}",
             )
+
 
 @app.get("/cache-stats")
 async def get_cache_stats():
@@ -187,8 +195,9 @@ async def get_cache_stats():
     return {
         "cache_size": len(tool_cache),
         "max_size": tool_cache.maxsize,
-        "ttl_seconds": tool_cache.ttl
+        "ttl_seconds": tool_cache.ttl,
     }
+
 
 @app.post("/cache-clear")
 async def clear_cache():
@@ -201,7 +210,7 @@ async def clear_cache():
 async def get_enabled_servers() -> dict[str, Any]:
     """Get list of configured MCP servers with their status (OK or ERROR_NOT_ONLINE)."""
     configured = set(config.get("mcpServers", {}).keys())
-    
+
     async with client:
         try:
             tools = await client.list_tools()
@@ -211,18 +220,18 @@ async def get_enabled_servers() -> dict[str, Any]:
                 if "_" in tool.name:
                     server_name = tool.name.split("_", 1)[0]
                     live_servers.add(server_name)
-            
+
             # Build status list for each configured server
             servers = [
                 (name, "OK" if name in live_servers else "ERROR_NOT_ONLINE")
                 for name in sorted(configured)
             ]
-            
+
             return {
                 "servers": servers,
                 "total": len(configured),
                 "online": len(live_servers),
-                "offline": len(configured - live_servers)
+                "offline": len(configured - live_servers),
             }
         except Exception as e:
             raise HTTPException(
@@ -234,6 +243,7 @@ async def get_enabled_servers() -> dict[str, Any]:
 async def health() -> dict[str, Any]:
     """Simple health check that verifies client is also ok. Timeout is 5 seconds."""
     try:
+
         async def _health_check_with_client():
             async with client:
                 return {

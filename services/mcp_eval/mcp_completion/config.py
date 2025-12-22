@@ -32,9 +32,7 @@ class Config:
 
     def validate_required_config(self) -> None:
         """Validate that all required configuration values are set."""
-        required_configs = [
-            ("LLM_API_KEY", self.LLM_API_KEY)
-        ]
+        required_configs = [("LLM_API_KEY", self.LLM_API_KEY)]
 
         missing_configs = []
         for name, value in required_configs:
