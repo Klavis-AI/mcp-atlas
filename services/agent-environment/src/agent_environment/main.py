@@ -3,10 +3,10 @@ import contextlib
 import mcp
 from typing import Any, AsyncGenerator, Dict
 
+import anyio
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import mcp.types
-from .mcp_client import client, config
 from .logger import create_logger
 from cacheout import Cache
 import json
@@ -19,6 +19,8 @@ import os
 KLAVIS_SANDBOX_MODE = os.getenv("KLAVIS_SANDBOX_MODE", "").lower() == "true"
 if KLAVIS_SANDBOX_MODE:
     from .klavis_sandbox_client import klavis_sandbox_manager, klavis_sandbox_client
+else:
+    from .mcp_client import client, config
 
 CACHE_TTL_HOURS = 48
 
@@ -97,12 +99,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Klavis sandbox mode: acquire sandboxes with remote mcp servers from Klavis API
         logger.info("Starting agent environment in KLAVIS SANDBOX MODE")
         await klavis_sandbox_manager.acquire_all()
-        async with klavis_sandbox_client:
-            tools = await klavis_sandbox_client.list_tools()
-            logger.info(f"{len(tools)} tools loaded from Klavis sandbox servers")
-            yield
-        # Release sandboxes on shutdown
-        await klavis_sandbox_manager.release_all()
+        try:
+            async with klavis_sandbox_client:
+                tools = await klavis_sandbox_client.list_tools()
+                logger.info(f"{len(tools)} tools loaded from Klavis sandbox servers")
+                yield
+        finally:
+            # Release sandboxes on shutdown
+            with anyio.CancelScope(shield=True):
+                logger.info("Starting sandbox release process (shielded)...")
+                await klavis_sandbox_manager.release_all()
+                logger.info("Sandbox release process completed.")
     else:
         # Local mode: use local MCP servers from config
         mcp_servers = config.get("mcpServers", {})
@@ -134,13 +141,12 @@ async def root() -> dict[str, str]:
 async def list_tools() -> list[mcp.types.Tool]:
     """List all available tools from the MCP server."""
     if KLAVIS_SANDBOX_MODE:
-        async with klavis_sandbox_client:
-            try:
-                return await klavis_sandbox_client.list_tools()
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500, detail=f"Failed to list tools: {str(e)}"
-                )
+        try:
+            return await klavis_sandbox_client.list_tools()
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to list tools: {str(e)}"
+            )
     else:
         async with client:
             try:
@@ -186,23 +192,15 @@ async def call_tool(
         return cached_result
 
     if KLAVIS_SANDBOX_MODE:
-        async with klavis_sandbox_client:
-            try:
-                result = await klavis_sandbox_client.call_tool(mapped_tool_name, request.tool_args)
+        try:
+            result = await klavis_sandbox_client.call_tool(mapped_tool_name, request.tool_args)
+            return result.content
 
-                # Cache the successful result only for cacheable tools
-                content_blocks = result.content
-                if should_cache_tool(mapped_tool_name) and cache_key is not None:
-                    random_ttl = int(CACHE_TTL_HOURS * 60 * 60 * random.uniform(0.7, 1.0))
-                    tool_cache.set(cache_key, content_blocks, ttl=random_ttl)
-
-                return content_blocks
-
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to call tool '{request.tool_name}': {str(e)}",
-                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to call tool '{request.tool_name}': {str(e)}",
+            )
     else:
         async with client:
             try:
@@ -255,35 +253,14 @@ async def clear_cache():
 
 @app.get("/enabled-servers")
 async def get_enabled_servers() -> dict[str, Any]:
-    """Get list of configured MCP servers with their status (OK or ERROR_NOT_ONLINE)."""
     if KLAVIS_SANDBOX_MODE:
         # In Klavis sandbox mode, return acquired sandbox servers
-        configured = set(klavis_sandbox_manager.acquired_sandboxes.keys())
-        async with klavis_sandbox_client:
-            try:
-                tools = await klavis_sandbox_client.list_tools()
-                live_servers = set()
-                for tool in tools:
-                    if "_" in tool.name:
-                        server_name = tool.name.split("_", 1)[0]
-                        live_servers.add(server_name)
-
-                servers = [
-                    (name, "OK" if name in live_servers else "ERROR_NOT_ONLINE")
-                    for name in sorted(configured)
-                ]
-
-                return {
-                    "mode": "klavis_sandbox",
-                    "servers": servers,
-                    "total": len(configured),
-                    "online": len(live_servers),
-                    "offline": len(configured - live_servers),
-                }
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500, detail=f"Failed to get server status: {str(e)}"
-                )
+        servers = sorted(klavis_sandbox_manager.acquired_sandboxes.keys())
+        return {
+            "mode": "klavis_sandbox",
+            "servers": servers,
+            "total": len(servers),
+        }
     else:
         configured = set(config.get("mcpServers", {}).keys())
 
@@ -322,12 +299,13 @@ async def health() -> dict[str, Any]:
     try:
         if KLAVIS_SANDBOX_MODE:
             async def _health_check_klavis_sandbox():
-                async with klavis_sandbox_client:
-                    return {
-                        "status": "health_and_klavis_sandbox_connection_ok",
-                        "mode": "klavis_sandbox",
-                        "sandboxes": len(klavis_sandbox_manager.acquired_sandboxes),
-                    }
+
+                await klavis_sandbox_client.list_tools()
+                return {
+                    "status": "health_and_klavis_sandbox_connection_ok",
+                    "mode": "klavis_sandbox",
+                    "sandboxes": len(klavis_sandbox_manager.acquired_sandboxes),
+                }
 
             return await asyncio.wait_for(_health_check_klavis_sandbox(), timeout=5.0)
         else:

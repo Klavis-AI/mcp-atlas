@@ -16,7 +16,46 @@ logger = create_logger(__name__)
 KLAVIS_API_KEY = os.getenv("KLAVIS_API_KEY", "")
 
 DEFAULT_KLAVIS_MCP_SERVERS = [
-    "weather"
+    "weather",
+    # "twelvedata",
+    # "national_parks",
+    # "lara_translate",
+    # "e2b",
+    # "context7",
+    # "alchemy",
+    # "weights_and_biases",
+    # "huggingface",
+    # "arxiv_latex",
+    # "calculator",
+    # "clinicaltrialsgov",
+    # "met_museum",
+    # "open_library",
+    # "osm",
+    # "pubmed",
+    # "us_weather",
+    # "whois",
+    # "wikipedia",
+    
+    # "github_atlas",
+    # "notion",
+    # "airtable",
+    # "google_sheets",
+    # "google_calendar",
+    # "google_drive",
+    # "google_docs",
+    # "gmail",
+    # "google_calendar",
+    # "google_forms",
+    # "shopify",
+    # "woocommerce",
+    # "slack",
+    # "snowflake",
+    # "google_cloud",
+    # "postgres",
+    # "mongodb",
+    # "youtube",
+    # "local_dev", # Note: it will return filesystem/git/terminal/desktop-commander/arxiv/excel/word/powerpoint remote mcp servers
+    # "local_memory" 
 ]
 
 
@@ -136,8 +175,13 @@ class KlavisSandboxMCPClient:
         """Connect to a single Klavis sandbox MCP server via StreamableHttp."""
         from contextlib import AsyncExitStack
 
+        if server_name in self._sessions:
+            logger.warning(f"Already connected to {server_name}, skipping connection.")
+            return
+
         logger.info(f"Connecting to {server_name} at {url}")
         exit_stack = AsyncExitStack()
+
         await exit_stack.__aenter__()
 
         # Create StreamableHttp connection
@@ -171,10 +215,7 @@ class KlavisSandboxMCPClient:
         for server_name, session in self._sessions.items():
             try:
                 result = await session.list_tools()
-                # Prefix tool names with server name
-                for tool in result.tools:
-                    tool.name = f"{server_name}_{tool.name}"
-                    all_tools.append(tool)
+                all_tools.extend(result.tools)
             except Exception as e:
                 logger.error(f"Failed to list tools from {server_name}: {e}")
         return all_tools
@@ -187,13 +228,12 @@ class KlavisSandboxMCPClient:
 
         parts = tool_name.split("_", 1)
         server_name = parts[0]
-        actual_tool_name = parts[1]
 
         session = self._sessions.get(server_name)
         if not session:
             raise ValueError(f"No connection to server: {server_name}")
 
-        return await session.call_tool(actual_tool_name, arguments)
+        return await session.call_tool(tool_name, arguments)
 
 
 # Global manager instance
