@@ -55,23 +55,18 @@ We use [LiteLLM](https://docs.litellm.ai/) to support 100+ LLMs via a unified AP
 
 **Note: Allocate at least 8GB memory to Docker (10GB+ recommended).**
 
-**Option A: Use pre-built image (faster, recommended):**
-
+Add Klavis credentials to your `.env` to use remote MCP servers hosted by [Klavis](https://klavis.ai):
 ```bash
-docker pull ghcr.io/scaleapi/mcp-atlas:1.2.5
-docker tag ghcr.io/scaleapi/mcp-atlas:1.2.5 agent-environment:latest
-make run-docker
+KLAVIS_SANDBOX_MODE=true
+KLAVIS_API_KEY=your_klavis_api_key
 ```
 
-**Option B: Build from source:**
-
+Then run:
 ```bash
 make build && make run-docker
 ```
 
-This starts the agent-environment service on port 1984 (takes 1+ minute to initialize). Before continuing, please wait for this to finish, you'll see log "Uvicorn running on http://0.0.0.0:1984". 
-
-By default, [20 servers](services/agent-environment/src/agent_environment/mcp_client.py#L23) that don't require API keys are enabled. Servers requiring API keys are auto-enabled only if you've set their keys in `.env`.
+This starts the agent-environment service on port 1984 (takes 1+ minute to initialize). Before continuing, please wait for this to finish, you'll see log "Uvicorn running on http://0.0.0.0:1984". Servers are provisioned automatically from the Klavis API.
 
 Confirm that all 20 servers are online. You should see `"total":20,"online":20,"offline":0` and the list of servers. [Expected response](https://gist.github.com/geobio/88b1c4bed8148a8fbfb28628c384d5e1)
 ```bash
@@ -110,7 +105,7 @@ curl -X POST http://localhost:3000/v2/mcp_eval/run_agent \
   -H "Content-Type: application/json" \
   -d '{
     "model": "openai/gpt-5.1",
-    "messages": [{"role": "user", "content": "What is the first word of the file at /data/Barber Shop.csv?"}],
+    "messages": [{"role": "user", "content": "What is the first word of the file at /workspace/Barber Shop.csv?"}],
     "enabledTools": ["filesystem_read_text_file"],
     "maxTurns": 20
   }' | jq
