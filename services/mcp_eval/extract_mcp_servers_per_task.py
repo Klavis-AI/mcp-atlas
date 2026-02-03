@@ -26,6 +26,7 @@ TOOL_NAME_MAPPINGS = {
     "MongoDB_find": "mongodb_find",
     "MongoDB_list-collections": "mongodb_list-collections",
     "MongoDB_list-databases": "mongodb_list-databases",
+    "context7_get-library-docs": "context7_query-docs", # context7 mcp servernew version use query-docs instead of get-library-docs
 }
 
 MCP_SERVER_NAME_ONLY = True  # if True, only extract the MCP server name from the tool name, not the full tool name
