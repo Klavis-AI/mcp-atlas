@@ -44,6 +44,7 @@ TOOL_NAME_MAPPINGS = {
     "MongoDB_find": "mongodb_find",
     "MongoDB_list-collections": "mongodb_list-collections",
     "MongoDB_list-databases": "mongodb_list-databases",
+    "context7_get-library-docs": "context7_query-docs", # context7 mcp servernew version use query-docs instead of get-library-docs
 }
 
 # Cache whitelist - only these servers will have their responses cached
@@ -254,9 +255,9 @@ async def clear_cache():
 @app.get("/enabled-servers")
 async def get_enabled_servers() -> dict[str, Any]:
     if KLAVIS_SANDBOX_MODE:
-        # In Klavis sandbox mode, return acquired sandbox servers
-        # Format matches local mode: list of (name, status) tuples
-        server_names = sorted(klavis_sandbox_manager.acquired_sandboxes.keys())
+        # In Klavis sandbox mode, return all actual server names from acquired sandboxes
+        # Note: A single sandbox (like 'local_dev') can contain multiple servers (e.g., filesystem, git, terminal, desktop-commander, arxiv, excel, word, powerpoint)
+        server_names = klavis_sandbox_manager.get_all_server_names()
         servers = [(name, "OK") for name in server_names]
         return {
             "mode": "klavis_sandbox",
@@ -264,6 +265,7 @@ async def get_enabled_servers() -> dict[str, Any]:
             "total": len(servers),
             "online": len(servers),
             "offline": 0,
+            "sandboxes": list(klavis_sandbox_manager.acquired_sandboxes.keys()),
         }
     else:
         configured = set(config.get("mcpServers", {}).keys())

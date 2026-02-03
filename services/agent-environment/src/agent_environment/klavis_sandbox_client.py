@@ -14,47 +14,51 @@ logger = create_logger(__name__)
 
 KLAVIS_API_KEY = os.getenv("KLAVIS_API_KEY", "")
 
+# Server name aliases: maps ground truth trajectory names to Klavis sandbox names
+# Format: {alias_name: actual_klavis_name}
+SERVER_NAME_ALIASES = {
+    "osm-mcp-server": "osm",
+    "met-museum": "met_museum",
+    "clinicaltrialsgov-mcp-server": "clinicaltrialsgov",
+    "national-parks": "national_parks",
+    "open-library": "open_library",
+    "lara-translate": "lara_translate",
+    "e2b-server": "e2b",
+    "cli-mcp-server": "terminal",
+    "memory": "local_memory",
+    "weather-data": "weather",
+    "weather": "us_weather",
+    "googleworkspaceatlas": "google_workspace",
+}
+
+# Reverse mapping for get_all_server_names to include aliases
+REVERSE_SERVER_ALIASES = {v: k for k, v in SERVER_NAME_ALIASES.items()}
+
 DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "weather",
+    "us_weather",
     "twelvedata",
     "national_parks",
     "lara_translate",
     "e2b",
     "context7",
     "alchemy",
-    "weights_and_biases",
-    "huggingface",
-    "arxiv_latex",
     "calculator",
     "clinicaltrialsgov",
     "met_museum",
     "open_library",
     "osm",
     "pubmed",
-    "us_weather",
     "whois",
     "wikipedia",
-    "local_dev", # Note: it will return filesystem/git/terminal/desktop-commander/arxiv/excel/word/powerpoint remote mcp servers
-    
-    # "github_atlas",
+    "local_dev", # Note: local_dev sandbox will return filesystem/git/terminal/desktop-commander/arxiv/excel/word/powerpoint/mcp-code-executor/mcp-server-code-runner remote mcp servers
+    "github",
+    "mongodb",
+    "local_memory",
+    "googleworkspaceatlas" # as per MCP Atlas, this sandbox includes gmail and google calendar tools
     # "notion",
     # "airtable",
-    # "google_sheets",
-    # "google_calendar",
-    # "google_drive",
-    # "google_docs",
-    # "gmail",
-    # "google_calendar",
-    # "google_forms",
-    # "shopify",
-    # "woocommerce",
     # "slack",
-    # "snowflake",
-    # "google_cloud",
-    # "postgres",
-    # "mongodb",
-    # "youtube",
-    # "local_memory" 
 ]
 
 
@@ -140,11 +144,22 @@ class KlavisSandboxManager:
     def get_all_server_urls(self) -> dict[str, str]:
         """Get all acquired MCP server URLs."""
         urls = {}
-        for server_name, sandbox in self.acquired_sandboxes.items():
+        for sandbox in self.acquired_sandboxes.values():
             server_urls = sandbox.get("server_urls", {})
-            if server_name in server_urls:
-                urls[server_name] = server_urls[server_name]
+            # Add all server URLs from this sandbox
+            urls.update(server_urls)
         return urls
+    
+    def get_all_server_names(self) -> list[str]:
+        """Get all server names from acquired sandboxes, normalized to ground truth names."""
+        server_names = set()
+        for sandbox in self.acquired_sandboxes.values():
+            server_urls = sandbox.get("server_urls", {})
+            for name in server_urls.keys():
+                # Replace with ground truth name if mapping exists
+                normalized_name = REVERSE_SERVER_ALIASES.get(name, name)
+                server_names.add(normalized_name)
+        return sorted(server_names)
 
 
 class KlavisSandboxMCPClient:
@@ -209,30 +224,53 @@ class KlavisSandboxMCPClient:
                 logger.error(f"Error disconnecting from {server_name}: {e}")
 
     async def list_tools(self) -> list:
-        """List all tools from all connected servers."""
+        """List all tools from all connected servers, with server name prefix (like fastmcp).
+        
+        Tool naming pattern: {server_name}_{original_tool_name}
+        Example: server 'git' with tool 'git_add' -> 'git_git_add'
+        """
         all_tools = []
         for server_name, session in self._sessions.items():
             try:
                 result = await session.list_tools()
+                
+                # Determine the prefix to use (alias if exists, otherwise server name)
+                prefix = REVERSE_SERVER_ALIASES.get(server_name, server_name)
+                
+                # Add server name prefix to all tools (fastmcp pattern)
+                for tool in result.tools:
+                    tool.name = f"{prefix}_{tool.name}"
+                
                 all_tools.extend(result.tools)
             except Exception as e:
                 logger.error(f"Failed to list tools from {server_name}: {e}")
         return all_tools
 
     async def call_tool(self, tool_name: str, arguments: dict) -> Any:
-        """Call a tool on the appropriate server."""
+        """Call a tool on the appropriate server.
+        
+        Tool name format: {server_name}_{original_tool_name}
+        Example: 'git_git_add' -> server 'git', tool 'git_add'
+        """
         # Parse server name from tool name (format: servername_toolname)
         if "_" not in tool_name:
             raise ValueError(f"Invalid tool name format: {tool_name}")
 
         parts = tool_name.split("_", 1)
         server_name = parts[0]
+        actual_tool_name = parts[1]  # Strip the server prefix to get original tool name
+
+        # Map aliased server name to actual Klavis server name
+        if server_name in SERVER_NAME_ALIASES:
+            actual_server = SERVER_NAME_ALIASES[server_name]
+            logger.debug(f"Mapped server {server_name} -> {actual_server}")
+            server_name = actual_server
 
         session = self._sessions.get(server_name)
         if not session:
             raise ValueError(f"No connection to server: {server_name}")
 
-        return await session.call_tool(tool_name, arguments)
+        return await session.call_tool(actual_tool_name, arguments)
 
 
 # Global manager instance
