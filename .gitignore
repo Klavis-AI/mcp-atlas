@@ -15,3 +15,8 @@ wheels/
 .DS_Store
 
 .env
+
+# Result
+services/mcp_eval/completion_results/*
+services/mcp_eval/evaluation_results/*
+services/mcp_eval/excluded_tasks.txt
