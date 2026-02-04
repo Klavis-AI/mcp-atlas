@@ -105,7 +105,7 @@ curl -X POST http://localhost:3000/v2/mcp_eval/run_agent \
   -H "Content-Type: application/json" \
   -d '{
     "model": "openai/gpt-5.1",
-    "messages": [{"role": "user", "content": "What is the first word of the file at /workspace/Barber Shop.csv?"}],
+    "messages": [{"role": "user", "content": "What is the first word of the file at /data/Barber Shop.csv?"}],
     "enabledTools": ["filesystem_read_text_file"],
     "maxTurns": 20
   }' | jq
