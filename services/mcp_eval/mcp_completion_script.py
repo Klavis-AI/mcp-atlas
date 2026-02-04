@@ -745,6 +745,12 @@ def parse_arguments():
         help="Limit to first N tasks (useful for testing). If not specified, processes all tasks.",
     )
     parser.add_argument(
+        "--task-id",
+        type=str,
+        default=None,
+        help="Specific task ID to run (if not specified, runs all tasks in input)",
+    )
+    parser.add_argument(
         "--concurrency",
         type=int,
         default=10,
@@ -778,6 +784,9 @@ async def main():
         )
         dataset = load_dataset(args.input_huggingface, split="train")
         df = dataset.to_pandas()
+        if args.task_id:
+            df = df[df["TASK"] == args.task_id]
+            args.concurrency = 1  # Force single concurrency for single task
         if args.num_tasks:
             df = df.head(args.num_tasks)
 
