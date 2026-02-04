@@ -46,7 +46,6 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "met_museum",
     "localmemory",
     "open_library",
-    "osm",
     "pubmed",
     "wikipedia",
     
