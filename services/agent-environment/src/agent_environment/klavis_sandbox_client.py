@@ -51,16 +51,16 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "wikipedia",
     
     # Optional servers that require API keys
-    # "weather",
-    # "twelvedata",
-    # "national_parks",
-    # "lara_translate",
-    # "e2b",
-    # "alchemy",
-    # "github",
-    # "mongodb",
-    # "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
-    # "airtable",
+    "weather",
+    "twelvedata",
+    "national_parks",
+    "lara_translate",
+    "e2b",
+    "alchemy",
+    "github",
+    "mongodb",
+    "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
+    "airtable",
     
     # "notion",
     # "slack",
@@ -172,11 +172,13 @@ class KlavisSandboxManager:
 class KlavisSandboxMCPClient:
     """MCP Client that connects to Klavis sandbox servers via StreamableHttp transport.
     
-    Each list_tools/call_tool operation connects and disconnects automatically.
+    Each call_tool operation connects and disconnects automatically.
+    list_tools results are cached since tool schemas don't change.
     """
 
     def __init__(self, manager: KlavisSandboxManager):
         self.manager = manager
+        self._cached_tools: list | None = None
 
     async def _connect_server(self, server_name: str, url: str) -> tuple[ClientSession, Any]:
         """Connect to a single Klavis sandbox MCP server via StreamableHttp.
@@ -208,10 +210,14 @@ class KlavisSandboxMCPClient:
             logger.error(f"Error disconnecting from {server_name}: {e}")
 
     async def list_tools(self) -> list:
-        """List all tools from all servers, connecting and disconnecting for each.
+        """List all tools from all servers (cached after first call).
         
         Tool naming pattern: {server_name}_{original_tool_name}
         """
+        if self._cached_tools is not None:
+            logger.debug("Returning cached tools list")
+            return self._cached_tools
+
         all_tools = []
         server_urls = self.manager.get_all_server_urls()
 
@@ -228,6 +234,9 @@ class KlavisSandboxMCPClient:
                     await self._cleanup(exit_stack, server_name)
             except (Exception, asyncio.CancelledError) as e:
                 logger.error(f"Failed to list tools from {server_name}: {e}")
+
+        self._cached_tools = all_tools
+        logger.info(f"Cached {len(all_tools)} tools from {len(server_urls)} servers")
         return all_tools
 
     async def call_tool(self, tool_name: str, arguments: dict) -> Any:
