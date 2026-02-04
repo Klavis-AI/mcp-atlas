@@ -3,6 +3,7 @@ Klavis Sandbox MCP Client for connecting to remote Klavis sandbox servers.
 Uses StreamableHttp transport to connect to sandbox MCP servers acquired via Klavis API.
 """
 
+import asyncio
 import os
 import httpx
 from mcp import ClientSession
@@ -50,16 +51,16 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "wikipedia",
     
     # Optional servers that require API keys
-    "weather",
-    "twelvedata",
-    "national_parks",
-    "lara_translate",
-    "e2b",
-    "alchemy",
-    "github",
-    "mongodb",
-    "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
-    "airtable",
+    # "weather",
+    # "twelvedata",
+    # "national_parks",
+    # "lara_translate",
+    # "e2b",
+    # "alchemy",
+    # "github",
+    # "mongodb",
+    # "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
+    # "airtable",
     
     # "notion",
     # "slack",
@@ -138,12 +139,14 @@ class KlavisSandboxManager:
             self._http_client = None
 
     def get_server_url(self, server_name: str) -> str | None:
-        """Get the MCP server URL for an acquired sandbox."""
-        sandbox = self.acquired_sandboxes.get(server_name)
-        if not sandbox:
-            return None
-        server_urls = sandbox.get("server_urls", {})
-        return server_urls.get(server_name)
+        """Get the MCP server URL for a server (searches all acquired sandboxes)."""
+        for sandbox in self.acquired_sandboxes.values():
+            server_urls = sandbox.get("server_urls", {})
+            if server_name in server_urls:
+                return server_urls[server_name]
+        
+        logger.error(f"Server {server_name} not found in any acquired sandbox")
+        return None
 
     def get_all_server_urls(self) -> dict[str, str]:
         """Get all acquired MCP server URLs."""
@@ -167,103 +170,77 @@ class KlavisSandboxManager:
 
 
 class KlavisSandboxMCPClient:
-    """MCP Client that connects to Klavis sandbox servers via StreamableHttp transport."""
+    """MCP Client that connects to Klavis sandbox servers via StreamableHttp transport.
+    
+    Each list_tools/call_tool operation connects and disconnects automatically.
+    """
 
     def __init__(self, manager: KlavisSandboxManager):
         self.manager = manager
-        self._sessions: dict[str, ClientSession] = {}
-        self._exit_stacks: dict[str, Any] = {}
 
-    async def __aenter__(self):
-        """Connect to all acquired sandbox servers."""
-        server_urls = self.manager.get_all_server_urls()
-        for server_name, url in server_urls.items():
-            try:
-                await self._connect_server(server_name, url)
-            except Exception as e:
-                logger.error(f"Failed to connect to {server_name}: {e}")
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Disconnect from all servers."""
-        for server_name in list(self._sessions.keys()):
-            await self._disconnect_server(server_name)
-
-    async def _connect_server(self, server_name: str, url: str) -> None:
-        """Connect to a single Klavis sandbox MCP server via StreamableHttp."""
+    async def _connect_server(self, server_name: str, url: str) -> tuple[ClientSession, Any]:
+        """Connect to a single Klavis sandbox MCP server via StreamableHttp.
+        
+        Returns (session, exit_stack) for caller to manage cleanup.
+        """
         from contextlib import AsyncExitStack
-
-        if server_name in self._sessions:
-            logger.warning(f"Already connected to {server_name}, skipping connection.")
-            return
 
         logger.info(f"Connecting to {server_name} at {url}")
         exit_stack = AsyncExitStack()
-
         await exit_stack.__aenter__()
 
-        # Create StreamableHttp connection
         read_stream, write_stream, _ = await exit_stack.enter_async_context(
             streamablehttp_client(url)
         )
-
-        # Create and initialize session
         session = await exit_stack.enter_async_context(
             ClientSession(read_stream, write_stream)
         )
         await session.initialize()
-
-        self._sessions[server_name] = session
-        self._exit_stacks[server_name] = exit_stack
         logger.info(f"Connected to {server_name}")
+        return session, exit_stack
 
-    async def _disconnect_server(self, server_name: str) -> None:
-        """Disconnect from a single server."""
-        exit_stack = self._exit_stacks.pop(server_name, None)
-        self._sessions.pop(server_name, None)
-        if exit_stack:
-            try:
-                await exit_stack.__aexit__(None, None, None)
-            except Exception as e:
-                logger.error(f"Error disconnecting from {server_name}: {e}")
+    async def _cleanup(self, exit_stack: Any, server_name: str) -> None:
+        """Cleanup a session's exit stack."""
+        try:
+            await exit_stack.__aexit__(None, None, None)
+            logger.info(f"Disconnected from {server_name}")
+        except (Exception, asyncio.CancelledError) as e:
+            logger.error(f"Error disconnecting from {server_name}: {e}")
 
     async def list_tools(self) -> list:
-        """List all tools from all connected servers, with server name prefix (like fastmcp).
+        """List all tools from all servers, connecting and disconnecting for each.
         
         Tool naming pattern: {server_name}_{original_tool_name}
-        Example: server 'git' with tool 'git_add' -> 'git_git_add'
         """
         all_tools = []
-        for server_name, session in self._sessions.items():
+        server_urls = self.manager.get_all_server_urls()
+
+        for server_name, url in server_urls.items():
             try:
-                result = await session.list_tools()
-                
-                # Determine the prefix to use (alias if exists, otherwise server name)
-                prefix = REVERSE_SERVER_ALIASES.get(server_name, server_name)
-                
-                # Add server name prefix to all tools (fastmcp pattern)
-                for tool in result.tools:
-                    tool.name = f"{prefix}_{tool.name}"
-                
-                all_tools.extend(result.tools)
-            except Exception as e:
+                session, exit_stack = await self._connect_server(server_name, url)
+                try:
+                    result = await session.list_tools()
+                    prefix = REVERSE_SERVER_ALIASES.get(server_name, server_name)
+                    for tool in result.tools:
+                        tool.name = f"{prefix}_{tool.name}"
+                    all_tools.extend(result.tools)
+                finally:
+                    await self._cleanup(exit_stack, server_name)
+            except (Exception, asyncio.CancelledError) as e:
                 logger.error(f"Failed to list tools from {server_name}: {e}")
         return all_tools
 
     async def call_tool(self, tool_name: str, arguments: dict) -> Any:
-        """Call a tool on the appropriate server.
+        """Call a tool on the appropriate server, connecting and disconnecting.
         
         Tool name format: {server_name}_{original_tool_name}
-        Example: 'git_git_add' -> server 'git', tool 'git_add'
         """
-        # Parse server name from tool name (format: servername_toolname)
         if "_" not in tool_name:
-            logger.error(f"Invalid tool name format (missing '_'): {tool_name}")
             raise ValueError(f"Invalid tool name format: {tool_name}")
 
         parts = tool_name.split("_", 1)
         server_name = parts[0]
-        actual_tool_name = parts[1]  # Strip the server prefix to get original tool name
+        actual_tool_name = parts[1]
 
         # Map aliased server name to actual Klavis server name
         if server_name in SERVER_NAME_ALIASES:
@@ -271,17 +248,20 @@ class KlavisSandboxMCPClient:
             logger.debug(f"Mapped server {server_name} -> {actual_server}")
             server_name = actual_server
 
-        session = self._sessions.get(server_name)
-        if not session:
-            available_servers = list(self._sessions.keys())
-            logger.error(f"No connection to server '{server_name}' for tool '{tool_name}'. Available servers: {available_servers}")
-            raise ValueError(f"No connection to server: {server_name}")
+        url = self.manager.get_server_url(server_name)
+        if not url:
+            available_servers = list(self.manager.get_all_server_urls().keys())
+            logger.error(f"No server URL for '{server_name}'. Available: {available_servers}")
+            raise ValueError(f"No server URL for: {server_name}")
 
+        session, exit_stack = await self._connect_server(server_name, url)
         try:
             return await session.call_tool(actual_tool_name, arguments)
-        except Exception as e:
-            logger.error(f"Tool execution failed - server: '{server_name}', tool: '{actual_tool_name}', args: {arguments}, error: {e}")
+        except (Exception, asyncio.CancelledError) as e:
+            logger.error(f"Tool execution failed - server: '{server_name}', tool: '{actual_tool_name}', error: {e}")
             raise
+        finally:
+            await self._cleanup(exit_stack, server_name)
 
 
 # Global manager instance

@@ -101,10 +101,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Starting agent environment in KLAVIS SANDBOX MODE")
         await klavis_sandbox_manager.acquire_all()
         try:
-            async with klavis_sandbox_client:
-                tools = await klavis_sandbox_client.list_tools()
-                logger.info(f"{len(tools)} tools loaded from Klavis sandbox servers")
-                yield
+            tools = await klavis_sandbox_client.list_tools()
+            logger.info(f"{len(tools)} tools loaded from Klavis sandbox servers")
+            yield
         finally:
             # Release sandboxes on shutdown
             with anyio.CancelScope(shield=True):
