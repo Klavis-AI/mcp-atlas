@@ -606,7 +606,7 @@ def filter_tasks_by_enabled_servers(
             missing_servers = [s for s in task_servers if s not in enabled_servers]
             excluded_tasks.append((task_id, missing_servers))
 
-    return df.iloc[filtered_indices].copy(), excluded_tasks
+    return df.loc[filtered_indices].copy(), excluded_tasks
 
 
 def write_exclusion_report(
