@@ -51,16 +51,16 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "wikipedia",
     
     # Optional servers that require API keys
-    # "weather",
-    # "twelvedata",
-    # "national_parks",
-    # "lara_translate",
-    # "e2b",
-    # "alchemy",
-    # "github",
-    # "mongodb",
-    # "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
-    # "airtable",
+    "weather",
+    "twelvedata",
+    "national_parks",
+    "lara_translate",
+    "e2b",
+    "alchemy",
+    "github",
+    "mongodb",
+    "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
+    "airtable",
     
     # "notion",
     # "slack",
