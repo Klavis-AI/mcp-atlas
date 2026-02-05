@@ -110,7 +110,6 @@ class KlavisSandboxManager:
             logger.info(f"Releasing Klavis sandbox {sandbox_id} for {server_name}...")
             response = await self.http_client.delete(url)
             response.raise_for_status()
-            logger.info(f"Released Klavis sandbox {sandbox_id}")
         except Exception as e:
             logger.error(f"Failed to release Klavis sandbox {sandbox_id}: {e}")
         finally:
@@ -130,10 +129,14 @@ class KlavisSandboxManager:
                 logger.error(f"Failed to acquire Klavis sandbox for {server}: {result}")
 
     async def release_all(self) -> None:
-        """Release all acquired sandboxes."""
+        """Release all acquired sandboxes (in parallel)."""
         servers = list(self.acquired_sandboxes.keys())
-        for server in servers:
-            await self.release_sandbox(server)
+        if servers:
+            logger.info(f"Releasing {len(servers)} Klavis sandbox servers in parallel: {servers}")
+            await asyncio.gather(
+                *(self.release_sandbox(server) for server in servers),
+                return_exceptions=True
+            )
 
         if self._http_client:
             await self._http_client.aclose()
@@ -229,18 +232,26 @@ class KlavisSandboxMCPClient:
         sorted_server_items = sorted(normalized_server_urls.items(), key=lambda x: x[0])
         logger.info(f"Sorted server names: {[name for name, _ in sorted_server_items]}")
 
-        for server_name, url in sorted_server_items:
+        async def _list_tools_from_server(server_name: str, url: str) -> list:
+            """Connect to a server, list its tools, and disconnect."""
+            session, exit_stack = await self._connect_server(server_name, url)
             try:
-                session, exit_stack = await self._connect_server(server_name, url)
-                try:
-                    result = await session.list_tools()
-                    for tool in result.tools:
-                        tool.name = f"{server_name}_{tool.name}"
-                    all_tools.extend(result.tools)
-                finally:
-                    await self._cleanup(exit_stack, server_name)
-            except (Exception, asyncio.CancelledError) as e:
-                logger.error(f"Failed to list tools from {server_name}: {e}")
+                result = await session.list_tools()
+                for tool in result.tools:
+                    tool.name = f"{server_name}_{tool.name}"
+                return result.tools
+            finally:
+                await self._cleanup(exit_stack, server_name)
+
+        results = await asyncio.gather(
+            *(_list_tools_from_server(name, url) for name, url in sorted_server_items),
+            return_exceptions=True
+        )
+        for (server_name, _), result in zip(sorted_server_items, results):
+            if isinstance(result, Exception):
+                logger.error(f"Failed to list tools from {server_name}: {result}")
+            else:
+                all_tools.extend(result)
 
         self._cached_tools = all_tools
         logger.info(f"Cached {len(all_tools)} tools from {len(sorted_server_items)} servers")
