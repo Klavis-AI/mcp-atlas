@@ -221,14 +221,22 @@ class KlavisSandboxMCPClient:
         all_tools = []
         server_urls = self.manager.get_all_server_urls()
 
-        for server_name, url in server_urls.items():
+        # Apply REVERSE_SERVER_ALIASES mapping to normalize server names
+        normalized_server_urls = {
+            REVERSE_SERVER_ALIASES.get(name, name): url
+            for name, url in server_urls.items()
+        }
+        # Sort by normalized server names
+        sorted_server_items = sorted(normalized_server_urls.items(), key=lambda x: x[0])
+        logger.info(f"Sorted server names: {[name for name, _ in sorted_server_items]}")
+
+        for server_name, url in sorted_server_items:
             try:
                 session, exit_stack = await self._connect_server(server_name, url)
                 try:
                     result = await session.list_tools()
-                    prefix = REVERSE_SERVER_ALIASES.get(server_name, server_name)
                     for tool in result.tools:
-                        tool.name = f"{prefix}_{tool.name}"
+                        tool.name = f"{server_name}_{tool.name}"
                     all_tools.extend(result.tools)
                 finally:
                     await self._cleanup(exit_stack, server_name)
@@ -236,7 +244,7 @@ class KlavisSandboxMCPClient:
                 logger.error(f"Failed to list tools from {server_name}: {e}")
 
         self._cached_tools = all_tools
-        logger.info(f"Cached {len(all_tools)} tools from {len(server_urls)} servers")
+        logger.info(f"Cached {len(all_tools)} tools from {len(sorted_server_items)} servers")
         return all_tools
 
     async def call_tool(self, tool_name: str, arguments: dict) -> Any:
