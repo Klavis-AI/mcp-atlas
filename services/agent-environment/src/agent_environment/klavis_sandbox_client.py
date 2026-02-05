@@ -118,15 +118,17 @@ class KlavisSandboxManager:
             self.acquired_sandboxes.pop(server_name, None)
 
     async def acquire_all(self) -> None:
-        """Acquire sandboxes for all configured servers."""
+        """Acquire sandboxes for all configured servers (in parallel)."""
         servers = DEFAULT_KLAVIS_MCP_SANDBOXES.copy()
-        logger.info(f"Acquiring {len(servers)} Klavis sandbox servers: {servers}")
+        logger.info(f"Acquiring {len(servers)} Klavis sandbox servers in parallel: {servers}")
 
-        for server in servers:
-            try:
-                await self.acquire_sandbox(server)
-            except Exception as e:
-                logger.error(f"Failed to acquire Klavis sandbox for {server}: {e}")
+        results = await asyncio.gather(
+            *(self.acquire_sandbox(server) for server in servers),
+            return_exceptions=True
+        )
+        for server, result in zip(servers, results):
+            if isinstance(result, Exception):
+                logger.error(f"Failed to acquire Klavis sandbox for {server}: {result}")
 
     async def release_all(self) -> None:
         """Release all acquired sandboxes."""
@@ -198,14 +200,12 @@ class KlavisSandboxMCPClient:
             ClientSession(read_stream, write_stream)
         )
         await session.initialize()
-        logger.info(f"Connected to {server_name}")
         return session, exit_stack
 
     async def _cleanup(self, exit_stack: Any, server_name: str) -> None:
         """Cleanup a session's exit stack."""
         try:
             await exit_stack.__aexit__(None, None, None)
-            logger.info(f"Disconnected from {server_name}")
         except (Exception, asyncio.CancelledError) as e:
             logger.error(f"Error disconnecting from {server_name}: {e}")
 
@@ -254,7 +254,6 @@ class KlavisSandboxMCPClient:
         # Map aliased server name to actual Klavis server name
         if server_name in SERVER_NAME_ALIASES:
             actual_server = SERVER_NAME_ALIASES[server_name]
-            logger.debug(f"Mapped server {server_name} -> {actual_server}")
             server_name = actual_server
 
         url = self.manager.get_server_url(server_name)
