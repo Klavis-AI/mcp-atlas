@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info(f"{len(tools)} tools loaded from Klavis sandbox servers")
             
             print(f"{GREEN}✅ Successfully acquired and connected to all Klavis sandbox and MCP servers{RESET}")
-            print(f"{YELLOW}Press '{BOLD}q{RESET}{YELLOW}' to release sandboxes (Ctrl+C to quit){RESET}")
+            print(f"{YELLOW}Press '{BOLD}q{RESET}{YELLOW}' to release sandboxes {RESET}")
             print(f"{GREEN}=================================================={RESET}\n")
             
             yield

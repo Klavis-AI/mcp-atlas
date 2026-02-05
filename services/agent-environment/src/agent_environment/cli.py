@@ -44,7 +44,7 @@ def start_interactive_cli():
                     try:
                         req = urllib.request.Request("http://127.0.0.1:1984/admin/release-sandboxes", method="POST")
                         with urllib.request.urlopen(req) as response:
-                             print(f"{GREEN}[CLI] Sandboxes released. (Press CTRL+C to quit){RESET}")
+                             print(f"{GREEN}[CLI] Sandboxes released successfully! (You can now press CTRL+C to quit){RESET}")
                     except Exception as e:
                         print(f"{RED}[CLI] Failed to release sandboxes: {e}{RESET}")
         except Exception as e:
@@ -61,7 +61,13 @@ def start_interactive_cli():
     input_thread.start()
 
     # Run server (this blocks until shutdown)
-    server.run()
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        pass
 
 if __name__ == "__main__":
-    start_interactive_cli()
+    try:
+        start_interactive_cli()
+    except KeyboardInterrupt:
+        pass
