@@ -15,6 +15,14 @@ import random
 
 import os
 
+# ANSI Colors
+GREEN = "\033[92m"
+CYAN = "\033[96m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
+
 # Check if Klavis Sandbox mode is enabled
 KLAVIS_SANDBOX_MODE = os.getenv("KLAVIS_SANDBOX_MODE", "").lower() == "true"
 if KLAVIS_SANDBOX_MODE:
@@ -97,12 +105,21 @@ class CallToolRequest(BaseModel):
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if KLAVIS_SANDBOX_MODE:
+        print(f"\n\n{GREEN}=================================================={RESET}")
+        print(f"{BOLD}{CYAN}       KLAVIS MCP SANDBOX{RESET}")
+        print(f"{GREEN}=================================================={RESET}")
+
         # Klavis sandbox mode: acquire sandboxes with remote mcp servers from Klavis API
         logger.info("Starting agent environment in KLAVIS SANDBOX MODE")
         await klavis_sandbox_manager.acquire_all()
         try:
             tools = await klavis_sandbox_client.list_tools()
             logger.info(f"{len(tools)} tools loaded from Klavis sandbox servers")
+            
+            print(f"{GREEN}✅ Successfully acquired and connected to all Klavis sandbox and MCP servers{RESET}")
+            print(f"{YELLOW}Press '{BOLD}q{RESET}{YELLOW}' to release sandboxes {RESET}")
+            print(f"{GREEN}=================================================={RESET}\n")
+            
             yield
         finally:
             # Release sandboxes on shutdown
@@ -250,6 +267,16 @@ async def clear_cache():
     """Clear the entire cache."""
     tool_cache.clear()
     return {"message": "Cache cleared successfully", "cache_size": len(tool_cache)}
+
+
+@app.post("/admin/release-sandboxes")
+async def release_sandboxes():
+    """Manually release all sandboxes without exiting."""
+    if KLAVIS_SANDBOX_MODE:
+        logger.info("Manual sandbox release requested")
+        await klavis_sandbox_manager.release_all()
+        return {"status": "released", "mode": "klavis_sandbox"}
+    return {"status": "ignored", "mode": "local", "message": "Not in sandbox mode"}
 
 
 @app.get("/enabled-servers")

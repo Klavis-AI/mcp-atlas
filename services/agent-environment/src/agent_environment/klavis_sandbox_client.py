@@ -95,7 +95,6 @@ class KlavisSandboxManager:
 
         data = response.json()
         self.acquired_sandboxes[server_name] = data
-        logger.info(f"Acquired Klavis sandbox {data.get('sandbox_id')} for {server_name}")
         return data
 
     async def release_sandbox(self, server_name: str) -> None:

@@ -44,4 +44,4 @@ EXPOSE 1984
 ENTRYPOINT ["/agent-environment/entrypoint.sh"]
 
 # Set the default command (users can override this)
-CMD ["uv", "run", "python", "-m", "uvicorn", "agent_environment.main:app", "--host", "0.0.0.0", "--port", "1984"]
+CMD ["uv", "run", "python", "-m", "agent_environment.cli"]
