@@ -15,13 +15,11 @@ MCP-Atlas evaluates how well AI agents can use tools to complete real-world task
 - LLM-as-judge evaluation producing pass rate, coverage rate, and detailed diagnostics
 - Dockerized environment ensuring reproducible results across different machines
 
-![MCP-Atlas Architecture](assets/architecture-diagram.png)
+![MCP-Atlas Architecture](assets/klavis.png)
+*Optimized by Klavis AI Team
 
-### Summary of MCP servers and tools
+### Summary of Klavis remote MCP servers and tools
 
-- See the MCP server definitions [`mcp_server_template.json`](services/agent-environment/src/agent_environment/mcp_server_template.json). `uvx` servers can be found at pypi.org and `npx` servers at npmjs.com.
-- All servers should be open source or forked from another open source repo. We at Scale AI did not develop any new MCP servers for MCP-Atlas, and instead used real-world MCP servers.
-- Versions are pinned to ensure they don't change over time, to ensure reproducibility.
 - See the [summary of 36 mcp servers and all 307 tools here](https://gist.github.com/geobio/d0272d41ea395376233f1617a3988860).
 - See sample tool calls in [curl_scripts directory](services/agent-environment/dev_scripts/debug_and_concurrency_tests/curl_scripts). This is the easiest way to directly call the MCP servers via agent-environment service in the docker container.
 - To check what tools are available, you can use this CURL script:  
@@ -33,7 +31,7 @@ or see the [full tool definition for all 36 servers and 307 tools here](https://
 This project depends on these CLI tools: [docker](https://www.docker.com/products/docker-desktop/), [uv](https://docs.astral.sh/uv/getting-started/installation/#installation-methods), [jq](https://jqlang.org/download/), and python 3.10+.
 
 ```bash
-git clone git@github.com:scaleapi/mcp-atlas.git
+git clone git@github.com:Klavis-AI/mcp-atlas.git
 cd mcp-atlas
 ```
 
@@ -65,10 +63,11 @@ Then run:
 ```bash
 make build && make run-docker
 ```
+[Expected response](https://gist.github.com/zihaolin96/474f500feff79924e525f177c4c37b89)
 
 This starts the agent-environment service on port 1984 (takes 1+ minute to initialize). Before continuing, please wait for this to finish, you'll see log "Uvicorn running on http://0.0.0.0:1984". Servers are provisioned automatically from the Klavis API.
 
-Confirm that all 20 servers are online. You should see `"total":20,"online":20,"offline":0` and the list of servers. [Expected response](https://gist.github.com/geobio/88b1c4bed8148a8fbfb28628c384d5e1)
+Confirm that all mcp servers are online. You should see example `"total":29,"online":29,"offline":0` and the list of servers. [Expected response](https://gist.github.com/zihaolin96/fad2a7d1a243ecf756fbe957c5f4ac45)
 ```bash
 curl -s http://localhost:1984/enabled-servers | jq -c
 ```
@@ -93,6 +92,7 @@ curl -X POST http://localhost:1984/call-tool \
 ```bash
 make run-mcp-completion
 ```
+[Expected response](https://gist.github.com/zihaolin96/474f500feff79924e525f177c4c37b89)
 
 This starts the MCP completion service on port 3000. It provides an API that connects LLMs to the MCP servers, handling the agentic loop: the LLM decides which tools to call, the service executes them via the MCP servers (port 1984), and returns results back to the LLM until the task is complete.
 
@@ -119,7 +119,7 @@ curl -X POST http://localhost:3000/v2/mcp_eval/run_agent \
 cd services/mcp_eval
 ```
 
-Run the script with a small sample of 10 tasks. This will use the specified input CSV file. It should be solvable with only the 20 MCP servers that don't require any API keys (enabled by default). For details on servers, see `env.template` and [`mcp_server_template.json`](services/agent-environment/src/agent_environment/mcp_server_template.json).
+Run the script with a small sample of 10 tasks. This will use the specified input CSV file. It should be solvable with only the MCP servers that don't require any API keys (enabled by default). For details on servers, see `env.template` and [`mcp_server_template.json`](services/agent-environment/src/agent_environment/mcp_server_template.json).
 
 ```bash
 uv run python mcp_completion_script.py \
@@ -167,7 +167,7 @@ Outputs saved to `evaluation_results/`:
 - `coverage_stats_gpt51.csv` - Summary statistics
 - `coverage_histogram_gpt51.png` - Score distribution plot
 
-### 7. Add more API keys (strongly recommended)
+### (You can Skip if use Klavis Sandbox)7. Add more API keys (strongly recommended)
 
 Approximately 18% of evaluation tasks work with the 20 default servers. To run more tasks, add API keys to your `.env` file (see `env.template` for setup instructions). Note that a task may require multiple mcp servers, and that task will be skipped if any of its required servers are unavailable. For example, exa is used in 13% of tasks as part of the ground truth trajectory, and without that api key, you'll skip 13% of tasks. API-requiring mcp server usage:
 
