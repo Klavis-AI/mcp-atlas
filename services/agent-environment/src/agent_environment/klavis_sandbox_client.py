@@ -61,9 +61,7 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "mongodb",
     "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
     "airtable",
-    
-    # "notion",
-    # "slack",
+    "notion",
 ]
 
 
