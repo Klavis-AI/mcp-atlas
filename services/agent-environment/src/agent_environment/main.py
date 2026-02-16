@@ -283,7 +283,7 @@ async def release_sandboxes():
 async def get_enabled_servers() -> dict[str, Any]:
     if KLAVIS_SANDBOX_MODE:
         # In Klavis sandbox mode, return all actual server names from acquired sandboxes
-        # Note: A single sandbox (like 'local_dev') can contain multiple servers (e.g., filesystem, git, terminal, desktop-commander, arxiv, excel, word, powerpoint)
+        # Note: Local sandbox servers (filesystem, git, terminal, etc.) are acquired via /local-sandbox endpoint
         server_names = klavis_sandbox_manager.get_all_server_names()
         servers = [(name, "OK") for name in server_names]
         return {

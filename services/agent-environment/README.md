@@ -83,7 +83,7 @@ Once ready, the service provides HTTP endpoints on port 1984:
 Default servers acquired from Klavis (configured in `klavis_sandbox_client.py`):
 
 - **No API keys needed:** calculator, clinicaltrialsgov, us_weather, context7, met_museum, localmemory, open_library, osm, pubmed, wikipedia
-- **local_dev sandbox:** Includes filesystem, git, terminal, desktop-commander, arxiv, excel, word, powerpoint, mcp-code-executor, mcp-server-code-runner
+- **Local sandbox** (acquired via `/local-sandbox` endpoint): filesystem, git, terminal, desktop-commander, arxiv, code-executor, code-runner
 - **API keys required (configured in Klavis):** weather, twelvedata, national_parks, lara_translate, e2b, alchemy, github, mongodb, googleworkspaceatlas, airtable
 
 ### Local Mode
