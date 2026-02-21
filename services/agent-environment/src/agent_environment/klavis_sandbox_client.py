@@ -47,6 +47,7 @@ DEFAULT_LOCAL_SANDBOX_SERVERS = [
     "arxiv",
     "code-executor",
     "code-runner",
+    "localmemory",
 ]
 
 DEFAULT_KLAVIS_MCP_SANDBOXES = [
@@ -56,7 +57,6 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "us_weather",
     "context7",
     "met_museum",
-    "localmemory",
     "open_library",
     "pubmed",
     "wikipedia",
