@@ -32,6 +32,9 @@ SERVER_NAME_ALIASES = {
     "google-workspace": "googleworkspaceatlas",
     "mcp-server-code-runner": "code-runner",
     "mcp-code-executor": "code-executor",
+    "ddg-search": "duckduckgo",
+    "google-maps": "google_maps",
+    "brave-search": "brave_search",
 }
 
 # Reverse mapping for get_all_server_names to include ground truth server names
@@ -61,7 +64,7 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "pubmed",
     "wikipedia",
     
-    # Optional servers that require API keys
+    # servers that require API keys
     "weather",
     "twelvedata",
     "national_parks",
@@ -73,6 +76,17 @@ DEFAULT_KLAVIS_MCP_SANDBOXES = [
     "googleworkspaceatlas", # as per MCP Atlas, this sandbox includes gmail and google calendar tools
     "airtable",
     "notion",
+    
+    # optional servers
+    "slack",
+    "whois",
+    "oxylabs",
+    "brave_search",
+    "duckduckgo",
+    "exa",
+    "fetch",
+    "google_maps",
+    "osm",
 ]
 
 
@@ -333,7 +347,7 @@ class KlavisSandboxMCPClient:
             return_exceptions=True
         )
         for (server_name, _), result in zip(sorted_server_items, results):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.error(f"Failed to list tools from {server_name}: {result}")
             else:
                 all_tools.extend(result)
